@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- Firebase SDKs -->
+<script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-firestore-compat.js"></script>
+
+<script>
+  const firebaseConfig = {
+    apiKey: "{{ firebase_config.apiKey }}",
+    authDomain: "{{ firebase_config.authDomain }}",
+    projectId: "{{ firebase_config.projectId }}",
+    storageBucket: "{{ firebase_config.storageBucket }}",
+    messagingSenderId: "{{ firebase_config.messagingSenderId }}",
+    appId: "{{ firebase_config.appId }}",
+    measurementId: "{{ firebase_config.measurementId | default('') }}"
+  };
+  const firebaseApp = firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+</script>
+
+<div class="min-h-screen bg-gray-50">
+  <!-- Header -->
+  <header class="bg-white shadow-sm">
+    <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+      <h1 class="text-2xl font-bold text-blue-600">Skill Swap Platform</h1>
+      <div class="flex items-center space-x-4">
+        <a href="/login" id="login-btn" class="px-4 py-2 text-blue-600 hover:text-blue-800">Login</a>
+        <a href="/profile" id="profile-btn" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 hidden">Profile</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main -->
+  <main class="container mx-auto px-4 py-8">
+    <div class="mb-8">
+      <div class="relative">
+        <input type="text" id="search-input" placeholder="Search skills..." 
+               class="w-full p-4 pl-12 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500">
+        <svg class="absolute left-4 top-4 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+      </div>
+    </div>
+
+    <!-- Loading Spinner -->
+    <div id="loading-spinner" class="flex justify-center py-8">
+      <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+    </div>
+
+    <!-- Users Grid -->
+    <div id="users-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 hidden"></div>
+
+    <!-- No Results -->
+    <div id="no-results" class="text-center py-12 hidden">
+      <h3 class="text-xl font-semibold text-gray-700 mb-2">No users found</h3>
+      <p class="text-gray-500">Try adjusting your search filters</p>
+    </div>
+  </main>
+</div>
+
+<script>
+  firebase.auth().onAuthStateChanged((user) => {
+    document.getElementById('login-btn').classList.toggle('hidden', !!user);
+    document.getElementById('profile-btn').classList.toggle('hidden', !user);
+  });
+
+  document.addEventListener('DOMContentLoaded', async () => {
+    const usersContainer = document.getElementById('users-container');
+    const loadingSpinner = document.getElementById('loading-spinner');
+    const noResults = document.getElementById('no-results');
+
+    try {
+      const swapSnapshot = await db.collection('swaps').get();
+
+      if (swapSnapshot.empty) {
+        noResults.classList.remove('hidden');
+        return;
+      }
+
+      for (const doc of swapSnapshot.docs) {
+        const swap = doc.data();
+        const swapId = doc.id;
+
+        try {
+          const userSnap = await db.collection('users').doc(swap.fromUserId).get();
+          const userData = userSnap.data();
+
+          const cardHTML = `
+            <div class="bg-white rounded-lg shadow-md overflow-hidden">
+              <div class="p-6">
+                <div class="flex items-center space-x-4 mb-4">
+                  <img src="${userData?.photoURL || 'https://via.placeholder.com/50'}"
+                       alt="Profile" class="w-12 h-12 rounded-full">
+                  <div>
+                    <h3 class="font-semibold text-lg">${userData?.displayName || 'User'}</h3>
+                    <div class="flex items-center">
+                      <span class="text-yellow-500">${getStarRating(userData?.rating || 0)}</span>
+                      <span class="ml-1 text-gray-600">${(userData?.rating || 0).toFixed(1)}/5</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="text-sm space-y-1">
+                  <p><strong>Offered Skill:</strong> ${swap.offeredSkill || 'N/A'}</p>
+                  <p><strong>Requested Skill:</strong> ${swap.requestedSkill || 'N/A'}</p>
+                  <p><strong>Status:</strong> ${swap.status || 'N/A'}</p>
+                </div>
+
+                <div class="mt-4 flex flex-col gap-2">
+                  <button onclick="goToRequestForm('${swapId}')"
+                          class="w-full py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                    Request Swap
+                  </button>
+                  <button onclick="viewSwapProfile('${swapId}')"
+                          class="w-full py-2 border border-blue-600 text-blue-600 rounded-md hover:bg-blue-100">
+                    View Swap Profile
+                  </button>
+                </div>
+              </div>
+            </div>
+          `;
+
+          usersContainer.innerHTML += cardHTML;
+
+        } catch (err) {
+          console.error('Error fetching user info:', err);
+        }
+      }
+
+      loadingSpinner.classList.add('hidden');
+      usersContainer.classList.remove('hidden');
+
+    } catch (err) {
+      console.error("Error loading swaps:", err);
+      loadingSpinner.classList.add('hidden');
+      noResults.classList.remove('hidden');
+    }
+  });
+
+  function getStarRating(rating) {
+    const fullStars = Math.floor(rating);
+    const halfStar = rating % 1 >= 0.5 ? 1 : 0;
+    const emptyStars = 5 - fullStars - halfStar;
+    return '★'.repeat(fullStars) + '½'.repeat(halfStar) + '☆'.repeat(emptyStars);
+  }
+
+  function goToRequestForm(swapId) {
+    if (!firebase.auth().currentUser) {
+      alert('Please login to request a swap');
+      window.location.href = '/login';
+      return;
+    }
+    window.location.href = `/request-swap/${swapId}`;
+  }
+
+  function viewSwapProfile(swapId) {
+    window.location.href = `/swap-profile/${swapId}`;
+  }
+</script>
+{% endblock %}

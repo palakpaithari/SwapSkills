@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-storage.js"></script>
+
+    <!-- Initialize Firebase -->
+    <script>
+        const firebaseConfig = {
+            apiKey: "{{ firebase_config.apiKey }}",
+            authDomain: "{{ firebase_config.authDomain }}",
+            projectId: "{{ firebase_config.projectId }}",
+            storageBucket: "{{ firebase_config.storageBucket }}",
+            messagingSenderId: "{{ firebase_config.messagingSenderId }}",
+            appId: "{{ firebase_config.appId }}",
+            measurementId: "{{ firebase_config.measurementId }}"
+        };
+        firebase.initializeApp(firebaseConfig);
+    </script>
+
+    <!-- User data for JavaScript -->
+    <div id="user-data" data-user='{{ current_user | tojson | safe }}'></div>
+
+    <!-- Profile Form -->
+    <div class="bg-white shadow rounded-lg p-6">
+        <h1 class="text-2xl font-bold mb-6">Your Profile</h1>
+
+        <form id="profile-form" class="space-y-6">
+            <!-- Avatar Upload -->
+            <div class="flex items-center space-x-4">
+                <img id="profile-avatar"
+                    src="{{ current_user.photoURL if current_user and current_user.photoURL else url_for('static', filename='images/default-avatar.jpg') }}"
+                    class="w-20 h-20 rounded-full object-cover">
+                <div>
+                    <label class="block">
+                        <span class="sr-only">Choose profile photo</span>
+                        <input id="avatar-upload" type="file" class="block w-full text-sm text-gray-500
+                            file:mr-4 file:py-2 file:px-4
+                            file:rounded-md file:border-0
+                            file:text-sm file:font-semibold
+                            file:bg-blue-50 file:text-blue-700
+                            hover:file:bg-blue-100">
+                    </label>
+                </div>
+            </div>
+
+            <!-- Display Name -->
+            <div>
+                <label for="displayName" class="block text-sm font-medium text-gray-700">Display Name</label>
+                <input type="text" id="displayName" name="displayName"
+                    value="{{ current_user.displayName if current_user else '' }}"
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                    required>
+            </div>
+
+            <!-- Location -->
+            <div>
+                <label for="location" class="block text-sm font-medium text-gray-700">Location</label>
+                <input type="text" id="location" name="location"
+                    value="{{ current_user.location if current_user and current_user.location else '' }}"
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+            </div>
+
+            <!-- Skills Offered -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Skills You Offer</label>
+                <div id="skills-offered-container" class="flex flex-wrap gap-2 mt-2 mb-2">
+                    <!-- JS inserts skill pills -->
+                </div>
+                <div class="flex">
+                    <input type="text" id="new-skill-offered"
+                        class="flex-grow rounded-l-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                        placeholder="Enter skill">
+                    <button type="button" onclick="addSkill('offered')"
+                        class="px-4 py-2 bg-blue-600 text-white rounded-r-md hover:bg-blue-700">
+                        Add
+                    </button>
+                </div>
+            </div>
+
+            <!-- Skills Wanted -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Skills You Want</label>
+                <div id="skills-wanted-container" class="flex flex-wrap gap-2 mt-2 mb-2">
+                    <!-- JS inserts skill pills -->
+                </div>
+                <div class="flex">
+                    <input type="text" id="new-skill-wanted"
+                        class="flex-grow rounded-l-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                        placeholder="Enter skill">
+                    <button type="button" onclick="addSkill('wanted')"
+                        class="px-4 py-2 bg-blue-600 text-white rounded-r-md hover:bg-blue-700">
+                        Add
+                    </button>
+                </div>
+            </div>
+
+            <!-- Availability -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Availability</label>
+                <div class="mt-2 space-y-2">
+                    {% for day in ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] %}
+                    <div class="flex items-center">
+                        <input id="avail-{{ day.lower() }}" name="availability" type="checkbox"
+                            value="{{ day }}"
+                            {% if current_user and current_user.availability and day in current_user.availability %}checked{% endif %}
+                            class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                        <label for="avail-{{ day.lower() }}" class="ml-2 block text-sm text-gray-700">{{ day }}</label>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Profile Visibility -->
+            <div class="flex items-center">
+                <input id="public" name="public" type="checkbox"
+                    {% if not current_user or current_user.public %}checked{% endif %}
+                    class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                <label for="public" class="ml-2 block text-sm text-gray-700">Make my profile public</label>
+            </div>
+
+            <!-- Submit Button -->
+            <div>
+                <button type="submit"
+                    class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                    Save Profile
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Include profile.js -->
+<script src="{{ url_for('static', filename='js/profile.js') }}"></script>
+{% endblock %}

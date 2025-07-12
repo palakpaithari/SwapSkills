@@ -1,0 +1,353 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- Firebase SDKs -->
+<script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-firestore-compat.js"></script>
+
+<script>
+  // Initialize Firebase with config from Flask
+  const firebaseConfig = {
+    apiKey: "{{ firebase_config.apiKey }}",
+    authDomain: "{{ firebase_config.authDomain }}",
+    projectId: "{{ firebase_config.projectId }}",
+    storageBucket: "{{ firebase_config.storageBucket }}",
+    messagingSenderId: "{{ firebase_config.messagingSenderId }}",
+    appId: "{{ firebase_config.appId }}",
+    measurementId: "{{ firebase_config.measurementId | default('') }}"
+  };
+
+  const firebaseApp = firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+</script>
+
+<div class="min-h-screen bg-gray-50">
+  <!-- Header Section -->
+  <header class="bg-white shadow-sm">
+    <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+      <h1 class="text-2xl font-bold text-blue-600">Skill Swap Platform</h1>
+      <div class="flex items-center space-x-4">
+        <a href="/login" id="login-btn" class="px-4 py-2 text-blue-600 hover:text-blue-800">Login</a>
+        <a href="/profile" id="profile-btn" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 hidden">Profile</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="container mx-auto px-4 py-8">
+    <!-- Hero Section -->
+    <section class="mb-12 bg-blue-600 text-white rounded-xl p-8">
+      <div class="max-w-2xl mx-auto text-center">
+        <h2 class="text-3xl font-bold mb-4">Exchange Skills, Grow Together</h2>
+        <p class="text-xl mb-6">Find people to swap skills with - no money needed!</p>
+        <a href="/signup" class="inline-block px-6 py-3 bg-white text-blue-600 font-medium rounded-lg hover:bg-gray-100">Get Started</a>
+      </div>
+    </section>
+
+    <!-- Search and Filters -->
+    <div class="mb-8 bg-white p-6 rounded-xl shadow-sm">
+      <div class="relative mb-4">
+        <input type="text" id="search-input" placeholder="Search skills or users..." 
+               class="w-full p-4 pl-12 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500">
+        <svg class="absolute left-4 top-4 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+        </svg>
+      </div>
+
+      <div class="flex flex-wrap gap-4">
+        <div class="flex-1 min-w-[200px]">
+          <label class="block text-sm font-medium text-gray-700 mb-1">Skill Category</label>
+          <select id="skill-category" class="w-full rounded-md border-gray-300 shadow-sm">
+            <option value="">All Categories</option>
+            <option value="technical">Technical</option>
+            <option value="creative">Creative</option>
+            <option value="language">Language</option>
+            <option value="professional">Professional</option>
+          </select>
+        </div>
+
+        <div class="flex-1 min-w-[200px]">
+          <label class="block text-sm font-medium text-gray-700 mb-1">Availability</label>
+          <select id="availability-filter" class="w-full rounded-md border-gray-300 shadow-sm">
+            <option value="">Any Time</option>
+            <option value="weekdays">Weekdays</option>
+            <option value="weekends">Weekends</option>
+            <option value="mornings">Mornings</option>
+            <option value="afternoons">Afternoons</option>
+          </select>
+        </div>
+
+        <div class="flex items-end">
+          <button id="search-btn" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+            Search
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Loading Indicator -->
+    <div id="loading-spinner" class="flex justify-center py-8">
+      <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+    </div>
+
+    <!-- Users Section -->
+    <section class="mb-12">
+      <h2 class="text-2xl font-bold mb-6">Available Swappers</h2>
+      
+      <div id="users-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 hidden">
+        <!-- User cards will be dynamically inserted here -->
+      </div>
+
+      <div id="no-users" class="text-center py-12 hidden">
+        <h3 class="text-xl font-semibold text-gray-700 mb-2">No users found</h3>
+        <p class="text-gray-500">Try adjusting your search filters</p>
+      </div>
+    </section>
+
+    <!-- Recent Swaps Section -->
+    <section>
+      <h2 class="text-2xl font-bold mb-6">Recent Swap Requests</h2>
+      
+      <div id="swaps-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- Swap requests will be loaded here -->
+      </div>
+
+      <div id="no-swaps" class="text-center py-12 hidden">
+        <h3 class="text-xl font-semibold text-gray-700 mb-2">No swap requests yet</h3>
+        <p class="text-gray-500">Be the first to request a skill swap!</p>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+// Firebase Auth State Listener
+firebase.auth().onAuthStateChanged((user) => {
+  const loginBtn = document.getElementById('login-btn');
+  const profileBtn = document.getElementById('profile-btn');
+  if (user) {
+    loginBtn.classList.add('hidden');
+    profileBtn.classList.remove('hidden');
+  } else {
+    loginBtn.classList.remove('hidden');
+    profileBtn.classList.add('hidden');
+  }
+});
+
+// DOM Elements
+const usersContainer = document.getElementById('users-container');
+const swapsContainer = document.getElementById('swaps-container');
+const loadingSpinner = document.getElementById('loading-spinner');
+const noUsers = document.getElementById('no-users');
+const noSwaps = document.getElementById('no-swaps');
+const searchInput = document.getElementById('search-input');
+const skillCategory = document.getElementById('skill-category');
+const availabilityFilter = document.getElementById('availability-filter');
+const searchBtn = document.getElementById('search-btn');
+
+// Load initial data when page loads
+document.addEventListener('DOMContentLoaded', async () => {
+  await Promise.all([loadUsers(), loadSwaps()]);
+  loadingSpinner.classList.add('hidden');
+});
+
+// Load Users Function
+async function loadUsers() {
+  try {
+    let query = db.collection('users').where('public', '==', true).limit(12);
+    
+    // Apply filters if any
+    if (skillCategory.value) {
+      query = query.where('skillCategory', '==', skillCategory.value);
+    }
+    if (availabilityFilter.value) {
+      query = query.where('availability', 'array-contains', availabilityFilter.value);
+    }
+
+    const usersSnapshot = await query.get();
+
+    if (usersSnapshot.empty) {
+      noUsers.classList.remove('hidden');
+      usersContainer.classList.add('hidden');
+      return;
+    }
+
+    usersContainer.innerHTML = '';
+    
+    for (const doc of usersSnapshot.docs) {
+      const user = doc.data();
+      const userId = doc.id;
+      
+      const userCard = `
+        <div class="bg-white rounded-lg shadow-md overflow-hidden">
+          <div class="p-6">
+            <div class="flex items-center space-x-4 mb-4">
+              <img src="${user.photoURL || 'https://via.placeholder.com/50'}" 
+                   alt="Profile" class="w-12 h-12 rounded-full">
+              <div>
+                <h3 class="font-semibold text-lg">${user.displayName || 'User'}</h3>
+                <p class="text-gray-600">${user.location || 'Location not specified'}</p>
+              </div>
+            </div>
+            
+            <div class="space-y-3">
+              <div>
+                <h4 class="font-medium text-sm text-gray-500">Offers:</h4>
+                <div class="flex flex-wrap gap-1 mt-1">
+                  ${user.skillsOffered?.slice(0, 3).map(skill => 
+                    `<span class="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">${skill}</span>`
+                  ).join('') || 'No skills listed'}
+                </div>
+              </div>
+              
+              <div>
+                <h4 class="font-medium text-sm text-gray-500">Wants:</h4>
+                <div class="flex flex-wrap gap-1 mt-1">
+                  ${user.skillsWanted?.slice(0, 3).map(skill => 
+                    `<span class="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">${skill}</span>`
+                  ).join('') || 'No skills listed'}
+                </div>
+              </div>
+            </div>
+            
+            <div class="mt-4 flex justify-between items-center">
+              <div class="flex items-center">
+                <span class="text-yellow-500">${getStarRating(user.rating || 0)}</span>
+                <span class="ml-1 text-sm text-gray-600">${(user.rating || 0).toFixed(1)}</span>
+              </div>
+              <a href="/request-swap/${userId}" 
+                 class="px-3 py-1 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700">
+                Swap
+              </a>
+            </div>
+          </div>
+        </div>
+      `;
+
+      usersContainer.innerHTML += userCard;
+    }
+
+    noUsers.classList.add('hidden');
+    usersContainer.classList.remove('hidden');
+  } catch (error) {
+    console.error("Error fetching users:", error);
+    noUsers.classList.remove('hidden');
+    usersContainer.classList.add('hidden');
+  }
+}
+
+// Load Swaps Function
+async function loadSwaps() {
+  try {
+    const swapsSnapshot = await db.collection('swaps')
+      .orderBy('createdAt', 'desc')
+      .limit(6)
+      .get();
+
+    if (swapsSnapshot.empty) {
+      noSwaps.classList.remove('hidden');
+      swapsContainer.classList.add('hidden');
+      return;
+    }
+
+    swapsContainer.innerHTML = '';
+    
+    for (const doc of swapsSnapshot.docs) {
+      const swap = doc.data();
+      const swapId = doc.id;
+      
+      // Get user data for both parties
+      const [fromUser, toUser] = await Promise.all([
+        db.collection('users').doc(swap.fromUserId).get(),
+        db.collection('users').doc(swap.toUserId).get()
+      ]);
+      
+      if (!fromUser.exists || !toUser.exists) continue;
+
+      const swapElement = document.createElement('div');
+      swapElement.className = 'bg-white rounded-lg shadow-md overflow-hidden';
+      swapElement.innerHTML = `
+        <div class="p-6">
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center space-x-2">
+              <img src="${fromUser.data().photoURL || 'https://via.placeholder.com/40'}" 
+                   class="w-8 h-8 rounded-full">
+              <span class="font-medium">${fromUser.data().displayName}</span>
+              <span class="text-gray-400">→</span>
+              <img src="${toUser.data().photoURL || 'https://via.placeholder.com/40'}" 
+                   class="w-8 h-8 rounded-full">
+              <span class="font-medium">${toUser.data().displayName}</span>
+            </div>
+            <span class="px-2 py-1 text-xs rounded-full 
+                  ${swap.status === 'completed' ? 'bg-green-100 text-green-800' : 
+                    swap.status === 'rejected' ? 'bg-red-100 text-red-800' : 
+                    'bg-yellow-100 text-yellow-800'}">
+              ${swap.status || 'pending'}
+            </span>
+          </div>
+          
+          <div class="space-y-2">
+            <div class="flex items-start">
+              <span class="font-medium w-24">Offering:</span>
+              <p class="flex-1">${swap.offeredSkill || 'Not specified'}</p>
+            </div>
+            <div class="flex items-start">
+              <span class="font-medium w-24">Requesting:</span>
+              <p class="flex-1">${swap.requestedSkill || 'Not specified'}</p>
+            </div>
+          </div>
+          
+          <div class="mt-4 text-sm text-gray-500">
+            ${new Date(swap.createdAt?.toDate()).toLocaleString()}
+          </div>
+        </div>
+      `;
+      
+      swapsContainer.appendChild(swapElement);
+    }
+
+    noSwaps.classList.add('hidden');
+    swapsContainer.classList.remove('hidden');
+  } catch (error) {
+    console.error("Error loading swaps:", error);
+    noSwaps.classList.remove('hidden');
+    swapsContainer.classList.add('hidden');
+  }
+}
+
+// Helper Functions
+function getStarRating(rating) {
+  const fullStars = Math.floor(rating);
+  const halfStar = rating % 1 >= 0.5 ? 1 : 0;
+  const emptyStars = 5 - fullStars - halfStar;
+  return '★'.repeat(fullStars) + '½'.repeat(halfStar) + '☆'.repeat(emptyStars);
+}
+
+// Event Listeners
+searchBtn.addEventListener('click', loadUsers);
+searchInput.addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') loadUsers();
+});
+
+// Filter Users Function (for real-time search)
+function filterUsers() {
+  const searchTerm = searchInput.value.toLowerCase();
+  
+  document.querySelectorAll('#users-container > div').forEach(card => {
+    const name = card.querySelector('h3').textContent.toLowerCase();
+    const skillsOffered = card.querySelector('div > div:first-child').textContent.toLowerCase();
+    const skillsWanted = card.querySelector('div > div:nth-child(2)').textContent.toLowerCase();
+    
+    const matchesSearch = name.includes(searchTerm) || 
+                         skillsOffered.includes(searchTerm) || 
+                         skillsWanted.includes(searchTerm);
+    
+    card.style.display = matchesSearch ? 'block' : 'none';
+  });
+
+  const visibleCards = document.querySelectorAll('#users-container > div[style="display: block"]').length;
+  noUsers.classList.toggle('hidden', visibleCards > 0);
+}
+</script>
+{% endblock %}

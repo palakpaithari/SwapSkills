@@ -1,0 +1,30 @@
+/* Skill pills */
+.skill-pill {
+  @apply inline-flex items-center px-3 py-1 rounded-full text-sm font-medium;
+}
+
+.skill-pill-offered {
+  @apply bg-blue-100 text-blue-800;
+}
+
+.skill-pill-wanted {
+  @apply bg-green-100 text-green-800;
+}
+
+/* Avatar upload hover effect */
+.avatar-container:hover .avatar-overlay {
+  @apply opacity-100;
+}
+
+.avatar-overlay {
+  @apply absolute inset-0 bg-black bg-opacity-30 rounded-full flex items-center justify-center opacity-0 transition-opacity;
+}
+
+/* In your main CSS file */
+.fixed-alert {
+  transition: all 0.3s ease;
+  right: -100%;
+}
+.fixed-alert.show {
+  right: 1rem;
+}
